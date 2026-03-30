@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Configura\u00e7\u00f5es - Conversor BAT{% endblock %}
+{% block title %}Configurações - Conversor PDF{% endblock %}
 
 {% block content %}
 <div class="row fade-in">
     <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
-        <h2 class="hero-title mb-0">Configura\u00e7\u00f5es</h2>
+        <h2 class="hero-title mb-0">Configurações</h2>
         <a href="{% url 'converter:home' %}" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Voltar
         </a>
@@ -18,15 +18,15 @@
                 <h5 class="card-title fw-bold mb-4">
                     <i class="bi bi-translate text-primary me-2"></i>Regras de Mapeamento
                 </h5>
-                <p class="text-muted small">Defina como o sistema deve "traduzir" as colunas do PDF para o padr\u00e3o BAT.</p>
+                <p class="text-muted small">Defina como o sistema deve "traduzir" as colunas do PDF para o padrão CSV.</p>
                 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>Chave no PDF</th>
-                                <th>Coluna no BAT</th>
-                                <th class="text-end">A\u00e7\u00f5es</th>
+                                <th>Coluna no CSV</th>
+                                <th class="text-end">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -78,9 +78,9 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title fw-bold mb-4">
-                    <i class="bi bi-layout-three-columns text-primary me-2"></i>Esquemas BAT
+                    <i class="bi bi-layout-three-columns text-primary me-2"></i>Esquemas
                 </h5>
-                <p class="text-muted small">Defina a ordem e as colunas obrigat\u00f3rias por tipo de relat\u00f3rio.</p>
+                <p class="text-muted small">Defina a ordem e as colunas obrigatórias por tipo de relatório.</p>
 
                 {% for schema in schemas %}
                 <div class="mb-4">

@@ -7,14 +7,14 @@
 <div class="row justify-content-center fade-in">
     <div class="col-md-8 col-lg-6">
         <div class="hero-section">
-            <h1 class="hero-title">Automatize sua Migra\u00e7\u00e3o</h1>
-            <p class="lead text-muted">Extraia dados de PDF para CSV pronto para o software BAT em segundos.</p>
+            <h1 class="hero-title">Conversor PDF para CSV</h1>
+            <p class="lead text-muted">Extrair dados de PDF para CSV de forma rápida e eficiente.</p>
         </div>
 
         <div class="card p-4 p-md-5">
             <div class="card-body">
                 <h4 class="card-title mb-4 fw-bold">
-                    <i class="bi bi-cloud-upload me-2 text-primary"></i>Upload do Relat\u00f3rio
+                    <i class="bi bi-cloud-upload me-2 text-primary"></i>Upload
                 </h4>
                 
                 {% if error %}
@@ -33,52 +33,12 @@
 
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                            <span id="btnText"><i class="bi bi-gear-fill me-2"></i>Gerar CSV para o BAT</span>
+                            <span id="btnText"><i class="bi bi-gear-fill me-2"></i>Gerar CSV</span>
                             <span id="btnLoading" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                         </button>
                     </div>
                 </form>
 
-                <div class="mt-4 border-top pt-4">
-                    <h6 class="text-uppercase fw-bold text-muted small mb-3">Requisitos do BAT</h6>
-                    <div class="row g-2">
-                        <div class="col-6 col-md-4">
-                            <div class="small"><i class="bi bi-check2-circle text-success me-1"></i> Sem M\u00e1scaras</div>
-                        </div>
-                        <div class="col-6 col-md-4">
-                            <div class="small"><i class="bi bi-check2-circle text-success me-1"></i> Windows-1252</div>
-                        </div>
-                        <div class="col-6 col-md-4">
-                            <div class="small"><i class="bi bi-check2-circle text-success me-1"></i> CAIXA ALTA</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-5 text-center fade-in" style="animation-delay: 0.4s;">
-            <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="p-3">
-                        <i class="bi bi-shield-lock-fill fs-2 text-primary mb-2"></i>
-                        <h6 class="fw-bold">Seguro</h6>
-                        <p class="small text-muted">Processamento em mem\u00f3ria, sem logs sens\u00edveis.</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="p-3">
-                        <i class="bi bi-lightning-charge-fill fs-2 text-primary mb-2"></i>
-                        <h6 class="fw-bold">R\u00e1pido</h6>
-                        <p class="small text-muted">Convers\u00e3o instant\u00e2nea de tabelas PDF.</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="p-3">
-                        <i class="bi bi-cpu-fill fs-2 text-primary mb-2"></i>
-                        <h6 class="fw-bold">Inteligente</h6>
-                        <p class="small text-muted">Trata moedas, datas e s\u00edmbolos.</p>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
