@@ -286,13 +286,26 @@ def enforce_schema(df, report_type):
     
     # Map existing columns to the schema
     for col in df.columns:
-        norm_col = normalize_text(col)
+        norm_col = normalize_text(str(col))
         target_col = mapping.get(norm_col, norm_col)
         
+        # Auto-Fuzzy Mapeamento Inteligente
+        # Se não mapeou direto, tentamos remover caracteres especiais (ex: "CPF / CNPJ" -> "CPFCNPJ" -> "CPF_CNPJ")
+        if target_col not in schema:
+            clean_norm = re.sub(r'[^A-Z0-9]', '', norm_col)
+            for s_col in schema:
+                clean_s = re.sub(r'[^A-Z0-9]', '', normalize_text(s_col))
+                if clean_s == clean_norm:
+                    target_col = s_col
+                    break
+        
+        # Se após tudo a coluna mapear para o Schema, injeta ela. Senão, DROPA o "lixo".
         if target_col in schema:
-            final_df[target_col] = df[col]
-        else:
-            final_df[col] = df[col]
+            # Se já existir algo preenchido nessa coluna, junta com espaço para não sobreescrever
+            if target_col in final_df and not final_df[target_col].isna().all() and not (final_df[target_col] == "").all():
+                final_df[target_col] = final_df[target_col].astype(str).str.strip() + " " + df[col].astype(str).str.strip()
+            else:
+                final_df[target_col] = df[col]
             
     final_df = final_df.fillna("")
     for col in final_df.columns:
