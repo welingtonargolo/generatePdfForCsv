@@ -90,128 +90,134 @@
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
     const aiSwitch = document.getElementById('useAiSwitch');
     const aiContainer = document.getElementById('aiKeyContainer');
     const form = document.getElementById('compareForm');
     const statusAlert = document.getElementById('statusAlert');
 
-    aiSwitch.addEventListener('change', function() {
-        if(this.checked) {
-            aiContainer.classList.add('show');
-        } else {
-            aiContainer.classList.remove('show');
-        }
-    });
-
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const btn = document.getElementById('submitBtn');
-        const text = document.getElementById('btnText');
-        const loading = document.getElementById('btnLoading');
-        
-        btn.disabled = true;
-        loading.classList.remove('d-none');
-        statusAlert.classList.add('d-none');
-        
-        if (aiSwitch.checked) {
-            text.innerHTML = '<i class="bi bi-shield-check me-2"></i>Auditor IA Analisando tabelas...';
-        } else {
-            text.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Validando Matriz...';
-        }
-        
-        let step = 0;
-        let aiInterval;
-        if (aiSwitch.checked) {
-            const messages = [
-                "Cruzando dados do PDF e CSV...",
-                "Procurando por registros ausentes...",
-                "Validando colunas da planilha...",
-                "Apurando integridade..."
-            ];
-            aiInterval = setInterval(() => {
-                text.innerHTML = `<i class="bi bi-shield-check me-2"></i>${messages[step % messages.length]}`;
-                step++;
-            }, 4500);
-        }
-
-        try {
-            const formData = new FormData(form);
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            const contentType = response.headers.get("content-type");
-            
-            // Render HTML Errors
-            if (contentType && contentType.includes("text/html")) {
-                const htmlText = await response.text();
-                document.open();
-                document.write(htmlText);
-                document.close();
-                return;
-            }
-
-            if (response.ok) {
-                // Se a resposta for um JSON puro, significa Status OK (sem erros encontrados)
-                if (contentType && contentType.includes("application/json")) {
-                    const result = await response.json();
-                    if (result.status === "perfect") {
-                        statusAlert.classList.remove('d-none');
-                        text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Validação 100%';
-                    } else if (result.status === "error") {
-                        alert(result.message);
-                    }
-                } else if (contentType && contentType.includes("text/csv")) {
-                    // A IA (ou clássico) encontrou erro e cuspiu o CSV novo!
-                    const blob = await response.blob();
-                    let filename = 'relatorio_corrigido.csv';
-                    const disposition = response.headers.get('content-disposition');
-                    if (disposition && disposition.includes('filename="')) {
-                        filename = disposition.split('filename="')[1].split('"')[0];
-                    }
-                    
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                    
-                    text.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Baixou Correção!';
-                }
-                
-                // Cleanup
-                const key = form.elements['gemini_api_key'].value;
-                form.reset();
-                form.elements['gemini_api_key'].value = key;
-                
-                setTimeout(() => {
-                    text.innerHTML = '<i class="bi bi-search me-2"></i>Iniciar Auditoria';
-                    btn.disabled = false;
-                    loading.classList.add('d-none');
-                }, 4000);
-                
+    if(aiSwitch) {
+        aiSwitch.addEventListener('change', function() {
+            if(this.checked) {
+                aiContainer.classList.add('show');
             } else {
-                throw new Error('Falha na resposta do servidor.');
+                aiContainer.classList.remove('show');
             }
-        } catch (error) {
-            console.error(error);
-            text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
-            btn.disabled = false;
-            loading.classList.add('d-none');
-            setTimeout(() => {
-                text.innerHTML = '<i class="bi bi-search me-2"></i>Tentar Novamente';
-            }, 3000);
-        } finally {
-            if (aiInterval) clearInterval(aiInterval);
-        }
-    });
+        });
+    }
+
+    if(form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const text = document.getElementById('btnText');
+            const loading = document.getElementById('btnLoading');
+            
+            btn.disabled = true;
+            loading.classList.remove('d-none');
+            statusAlert.classList.add('d-none');
+            
+            if (aiSwitch.checked) {
+                text.innerHTML = '<i class="bi bi-shield-check me-2"></i>Auditor IA Analisando tabelas...';
+            } else {
+                text.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Validando Matriz...';
+            }
+            
+            let step = 0;
+            let aiInterval;
+            if (aiSwitch.checked) {
+                const messages = [
+                    "Cruzando dados do PDF e CSV...",
+                    "Procurando por registros ausentes...",
+                    "Validando colunas da planilha...",
+                    "Apurando integridade..."
+                ];
+                aiInterval = setInterval(() => {
+                    text.innerHTML = `<i class="bi bi-shield-check me-2"></i>${messages[step % messages.length]}`;
+                    step++;
+                }, 4500);
+            }
+
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const contentType = response.headers.get("content-type");
+                
+                // Render HTML Errors
+                if (contentType && contentType.includes("text/html")) {
+                    const htmlText = await response.text();
+                    document.open();
+                    document.write(htmlText);
+                    document.close();
+                    return;
+                }
+
+                if (response.ok) {
+                    // Se a resposta for um JSON puro, significa Status OK (sem erros encontrados)
+                    if (contentType && contentType.includes("application/json")) {
+                        const result = await response.json();
+                        if (result.status === "perfect") {
+                            statusAlert.classList.remove('d-none');
+                            text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Validação 100%';
+                        } else if (result.status === "error") {
+                            alert(result.message);
+                        }
+                    } else if (contentType && contentType.includes("text/csv")) {
+                        // A IA (ou clássico) encontrou erro e cuspiu o CSV novo!
+                        const blob = await response.blob();
+                        let filename = 'relatorio_corrigido.csv';
+                        const disposition = response.headers.get('content-disposition');
+                        if (disposition && disposition.includes('filename="')) {
+                            filename = disposition.split('filename="')[1].split('"')[0];
+                        }
+                        
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                        
+                        text.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Baixou Correção!';
+                    }
+                    
+                    // Cleanup
+                    const key = form.elements['gemini_api_key'].value;
+                    form.reset();
+                    form.elements['gemini_api_key'].value = key;
+                    
+                    setTimeout(() => {
+                        text.innerHTML = '<i class="bi bi-search me-2"></i>Iniciar Auditoria';
+                        btn.disabled = false;
+                        loading.classList.add('d-none');
+                    }, 4000);
+                    
+                } else {
+                    throw new Error('Falha na resposta do servidor.');
+                }
+            } catch (error) {
+                console.error(error);
+                text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
+                btn.disabled = false;
+                loading.classList.add('d-none');
+                setTimeout(() => {
+                    text.innerHTML = '<i class="bi bi-search me-2"></i>Tentar Novamente';
+                }, 3000);
+            } finally {
+                if (aiInterval) clearInterval(aiInterval);
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

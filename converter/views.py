@@ -3,6 +3,7 @@ from django.views import View
 from django.http import HttpResponse, JsonResponse
 from .forms import PDFUploadForm
 from .utils import extract_pdf_data, apply_bat_rules
+from .ai_extraction import extract_pdf_with_ai
 from .models import MappingRule, ReportSchema, IA
 import pandas as pd
 from io import BytesIO
@@ -20,7 +21,11 @@ class HomeView(View):
         form = PDFUploadForm(request.POST, request.FILES)
         if form.is_valid():
             pdf_file = request.FILES['pdf_file']
-            report_type = form.cleaned_data['report_type']
+            
+            # This is now a Model instance because of ModelChoiceField
+            schema_obj = form.cleaned_data['report_type']
+            schema_id = schema_obj.id
+            
             encoding = form.cleaned_data['encoding']
             delimiter = form.cleaned_data['delimiter']
             magic_keywords_raw = form.cleaned_data['magic_keywords']
@@ -35,22 +40,18 @@ class HomeView(View):
             # Process PDF
             try:
                 if use_ai and gemini_api_key:
-                    from .ai_extraction import extract_pdf_with_ai
-                    from .models import IA
                     ia = IA.objects.filter(api_key=gemini_api_key).first()
                     if not ia:
                         ia = IA.objects.create(api_key=gemini_api_key)
                     else:
                         ia.api_key = gemini_api_key
                         ia.save()
-                    print(f"Gemini API Key: {gemini_api_key}")
 
-
-                    df = extract_pdf_with_ai(pdf_file, report_type, gemini_api_key)
+                    df = extract_pdf_with_ai(pdf_file, schema_id, gemini_api_key)
                 elif use_ai and not gemini_api_key:
                     raise Exception("A extração inteligente requer a inserção da Chave de API do Gemini.")
                 else:
-                    df = extract_pdf_data(pdf_file, report_type, magic_keywords, ignore_patterns)
+                    df = extract_pdf_data(pdf_file, schema_id, magic_keywords, ignore_patterns)
                 
                 if df.empty:
                     return render(request, self.template_name, {
@@ -59,7 +60,7 @@ class HomeView(View):
                     })
 
                 # Apply BAT rules
-                df = apply_bat_rules(df, report_type)
+                df = apply_bat_rules(df, schema_id)
 
                 # Prepare CSV response
                 buffer = BytesIO()
@@ -75,16 +76,20 @@ class HomeView(View):
                 buffer.seek(0)
 
                 response = HttpResponse(buffer.getvalue(), content_type='text/csv')
-                filename = f"bat_import_{report_type}.csv"
+                filename = f"bat_import_{schema_obj.name.lower().replace(' ', '_')}.csv"
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
                 
                 return response
 
             except Exception as e:
+                print(f"DEBUG VIEWS: Exception occurred in PDF extraction: {str(e)}")
                 return render(request, self.template_name, {
                     'form': form,
-                    'error': f'Erro ao processar PDF: {str(e)}'
+                    'error': f'Erro processando PDF: {str(e)}',
+                    'ia': gemini_api_key
                 })
+        else:
+            print(f"DEBUG VIEWS: O formulário interceptou falhas de validação: {form.errors}")
 
         return render(request, self.template_name, {'form': form, 'ia': IA.objects.filter().first().api_key if IA.objects.filter().first() else ''})
 
@@ -92,21 +97,54 @@ class SettingsView(View):
     template_name = 'converter/settings.html'
 
     def get(self, request):
-        mappings = MappingRule.objects.all()
-        schemas = ReportSchema.objects.all()
+        schemas = ReportSchema.objects.prefetch_related('rules').all()
         return render(request, self.template_name, {
-            'mappings': mappings,
             'schemas': schemas
         })
 
     def post(self, request):
+        from django.contrib import messages
+        from django.db import connection
         action = request.POST.get('action')
         
-        if action == 'add_mapping':
+        if action == 'create_schema':
+            schema_name = request.POST.get('schema_name')
+            if schema_name:
+                ReportSchema.objects.get_or_create(name=schema_name)
+                messages.success(request, f'Esquema "{schema_name}" criado com sucesso!')
+
+        elif action == 'delete_schema':
+            schema_id = request.POST.get('schema_id')
+            schema = get_object_or_404(ReportSchema, id=schema_id)
+            name = schema.name
+            schema.delete()
+            messages.success(request, f'Esquema "{name}" apagado!')
+
+        elif action == 'upload_schema_csv':
+            schema_id = request.POST.get('schema_id')
+            csv_file = request.FILES.get('csv_template')
+            if schema_id and csv_file:
+                schema = get_object_or_404(ReportSchema, id=schema_id)
+                try:
+                    head = csv_file.read(4000).decode('utf-8', errors='ignore')
+                    lines = head.split('\n')
+                    if lines:
+                        first_line = lines[0].strip()
+                        sep = ';' if ';' in first_line else ','
+                        columns = [c.strip() for c in first_line.split(sep) if c.strip()]
+                        schema.columns = ', '.join(columns)
+                        schema.save()
+                        messages.success(request, f'Sucesso! O esquema assumiu as colunas base: {schema.columns}')
+                except Exception as e:
+                    messages.error(request, f'Erro ao ler CSV: {str(e)}')
+                    
+        elif action == 'add_mapping':
+            schema_id = request.POST.get('schema_id')
             source = request.POST.get('source_key')
             target = request.POST.get('target_key')
-            if source and target:
-                MappingRule.objects.get_or_create(source_key=source, defaults={'target_key': target})
+            if schema_id and source and target:
+                MappingRule.objects.get_or_create(schema_id=schema_id, source_key=source, defaults={'target_key': target})
+                messages.success(request, 'Nova regra atrelada a este esquema com sucesso!')
         
         elif action == 'delete_mapping':
             rule_id = request.POST.get('rule_id')
@@ -115,10 +153,11 @@ class SettingsView(View):
         elif action == 'update_schema':
             schema_id = request.POST.get('schema_id')
             columns = request.POST.get('columns')
-            if schema_id and columns:
+            if schema_id and columns is not None:
                 schema = get_object_or_404(ReportSchema, id=schema_id)
                 schema.columns = columns
                 schema.save()
+                messages.success(request, 'Colunas alteradas manualmente com sucesso!')
                 
         return redirect('converter:settings')
 

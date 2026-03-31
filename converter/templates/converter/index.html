@@ -33,13 +33,7 @@
                             <label class="form-label fw-semibold">Tipo de Relatório</label>
                             <div class="input-group">
                                 <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-list-task"></i></span>
-                                <select name="report_type" class="form-select bg-light border-0">
-                                    <option value="generic">Relatório Genérico</option>
-                                    <option value="clientes">Clientes</option>
-                                    <option value="produtos">Produtos</option>
-                                    <option value="fornecedores">Fornecedores</option>
-                                    <option value="vendas">Vendas</option>
-                                </select>
+                                {{ form.report_type }}
                             </div>
                         </div>
 
@@ -123,133 +117,135 @@
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
     const aiSwitch = document.getElementById('useAiSwitch');
     const aiContainer = document.getElementById('aiKeyContainer');
     const kwInput = document.getElementById('kwInput');
     const igInput = document.getElementById('igInput');
 
-    aiSwitch.addEventListener('change', function() {
-        if(this.checked) {
-            aiContainer.classList.add('show');
-            kwInput.disabled = true;
-            igInput.disabled = true;
-        } else {
-            aiContainer.classList.remove('show');
-            kwInput.disabled = false;
-            igInput.disabled = false;
-        }
-    });
-
-    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const form = this;
-        const btn = document.getElementById('submitBtn');
-        const text = document.getElementById('btnText');
-        const loading = document.getElementById('btnLoading');
-        
-        // Setup initial loading state
-        btn.disabled = true;
-        loading.classList.remove('d-none');
-        
-        // If AI is checked, provide didactic AI feedback
-        if (aiSwitch.checked) {
-            text.innerHTML = '<i class="bi bi-robot me-2"></i>A IA está lendo seu documento...';
-        } else {
-            text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Convertendo...';
-        }
-        
-        // Set dynamic progression for AI (gives the user a sense of "work being done")
-        let aiInterval;
-        if (aiSwitch.checked) {
-            let step = 0;
-            const messages = [
-                "A IA está processando as páginas...",
-                "Estruturando os dados em colunas...",
-                "Gerando o arquivo final..."
-            ];
-            aiInterval = setInterval(() => {
-                text.innerHTML = `<i class="bi bi-robot me-2"></i>${messages[step % messages.length]}`;
-                step++;
-            }, 5000);
-        }
-
-        try {
-            const formData = new FormData(form);
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            // Se for HTML (Deu algum erro renderizado no Django na mesma tela)
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.includes("text/html")) {
-                const htmlText = await response.text();
-                // O render do django retorna a pagina inteira. Vamos reconstruir ou mostrar.
-                document.open();
-                document.write(htmlText);
-                document.close();
-                return;
-            }
-
-            // Se for CSV
-            if (response.ok) {
-                const blob = await response.blob();
-                
-                // Get filename from header if possible
-                let filename = 'relatorio_convertido.csv';
-                const disposition = response.headers.get('content-disposition');
-                if (disposition && disposition.includes('filename="')) {
-                    filename = disposition.split('filename="')[1].split('"')[0];
-                }
-
-                // Trigger Download automatically
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-                
-                // Finalização Sucesso - Limpar campos com elegância!
-                // Guardamos a key antes pra resetar apenas o resto
-                const currentApikey = form.elements['gemini_api_key'].value;
-                form.reset();
-                form.elements['gemini_api_key'].value = currentApikey;
-                
-                // Se a IA estava ativa, o form.reset desativa o check, então reaplicamos os estados default se desejar, mas o reset reseta pro estado original limpo.
+    if(aiSwitch) {
+        aiSwitch.addEventListener('change', function() {
+            if(this.checked) {
+                aiContainer.classList.add('show');
+                kwInput.disabled = true;
+                igInput.disabled = true;
+            } else {
                 aiContainer.classList.remove('show');
                 kwInput.disabled = false;
                 igInput.disabled = false;
-                
-                text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Download Concluído!';
-                setTimeout(() => {
-                    text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Converter Novo PDF';
-                    btn.disabled = false;
-                    loading.classList.add('d-none');
-                }, 3000);
-                
+            }
+        });
+    }
+
+    const uploadForm = document.getElementById('uploadForm');
+    if(uploadForm) {
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = this;
+            const btn = document.getElementById('submitBtn');
+            const text = document.getElementById('btnText');
+            const loading = document.getElementById('btnLoading');
+            
+            // Setup initial loading state
+            btn.disabled = true;
+            loading.classList.remove('d-none');
+            
+            // If AI is checked, provide didactic AI feedback
+            if (aiSwitch.checked) {
+                text.innerHTML = '<i class="bi bi-robot me-2"></i>A IA está lendo seu documento...';
             } else {
-                throw new Error('Falha na resposta do servidor.');
+                text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Convertendo...';
+            }
+            
+            // Set dynamic progression for AI
+            let aiInterval;
+            if (aiSwitch.checked) {
+                let step = 0;
+                const messages = [
+                    "A IA está processando as páginas...",
+                    "Estruturando os dados em colunas...",
+                    "Gerando o arquivo final..."
+                ];
+                aiInterval = setInterval(() => {
+                    text.innerHTML = `<i class="bi bi-robot me-2"></i>${messages[step % messages.length]}`;
+                    step++;
+                }, 5000);
             }
 
-        } catch (error) {
-            console.error(error);
-            text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
-            btn.disabled = false;
-            loading.classList.add('d-none');
-            setTimeout(() => {
-                text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Tentar Novamente';
-            }, 3000);
-            
-        } finally {
-            if (aiInterval) clearInterval(aiInterval);
-        }
-    });
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                // Se for HTML (Deu algum erro renderizado no Django na mesma tela)
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("text/html")) {
+                    const htmlText = await response.text();
+                    document.open();
+                    document.write(htmlText);
+                    document.close();
+                    return;
+                }
+
+                // Se for CSV
+                if (response.ok) {
+                    const blob = await response.blob();
+                    
+                    let filename = 'relatorio_convertido.csv';
+                    const disposition = response.headers.get('content-disposition');
+                    if (disposition && disposition.includes('filename="')) {
+                        filename = disposition.split('filename="')[1].split('"')[0];
+                    }
+
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    
+                    // Cleanup
+                    const currentApikey = form.elements['gemini_api_key'].value;
+                    form.reset();
+                    form.elements['gemini_api_key'].value = currentApikey;
+                    
+                    aiContainer.classList.remove('show');
+                    kwInput.disabled = false;
+                    igInput.disabled = false;
+                    
+                    text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Download Concluído!';
+                    setTimeout(() => {
+                        text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Converter Novo PDF';
+                        btn.disabled = false;
+                        loading.classList.add('d-none');
+                    }, 3000);
+                    
+                } else {
+                    throw new Error('Falha na resposta do servidor.');
+                }
+
+            } catch (error) {
+                console.error(error);
+                text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
+                btn.disabled = false;
+                loading.classList.add('d-none');
+                setTimeout(() => {
+                    text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Tentar Novamente';
+                }, 3000);
+                
+            } finally {
+                if (aiInterval) clearInterval(aiInterval);
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

@@ -1,12 +1,5 @@
 from django import forms
-
-REPORT_TYPES = [
-    ('produtos', 'Produtos'),
-    ('clientes', 'Clientes'),
-    ('fornecedores', 'Fornecedores'),
-    ('vendas', 'Vendas'),
-    ('generic', 'Relat\u00f3rio Gen\u00e9rico'),
-]
+from .models import ReportSchema
 
 ENCODING_CHOICES = [
     ('utf-8', 'UTF-8'),
@@ -16,14 +9,14 @@ ENCODING_CHOICES = [
 class PDFUploadForm(forms.Form):
     pdf_file = forms.FileField(
         label='Selecione o PDF',
-        help_text='O arquivo ser\u00e1 processado em mem\u00f3ria.',
+        help_text='O arquivo será processado em memória.',
         widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.pdf'})
     )
-    report_type = forms.ChoiceField(
-        choices=REPORT_TYPES,
-        initial='generic',
-        label='Tipo de Relat\u00f3rio',
-        widget=forms.Select(attrs={'class': 'form-select'})
+    report_type = forms.ModelChoiceField(
+        queryset=ReportSchema.objects.all(),
+        empty_label="Selecione um Esquema",
+        label='Esquema de Relatório (Alvo)',
+        widget=forms.Select(attrs={'class': 'form-select bg-light border-0'})
     )
     encoding = forms.ChoiceField(
         choices=ENCODING_CHOICES,

@@ -6,13 +6,15 @@ from io import BytesIO
 
 from .models import MappingRule, ReportSchema
 
-def get_dynamic_mapping():
-    """Fetches mapping rules from the database."""
-    return {rule.source_key: rule.target_key for rule in MappingRule.objects.all()}
+def get_dynamic_mapping(schema_id):
+    """Fetches mapping rules from the database for a specific schema."""
+    if not schema_id: return {}
+    return {rule.source_key: rule.target_key for rule in MappingRule.objects.filter(schema_id=schema_id)}
 
-def get_dynamic_schema(report_type):
+def get_dynamic_schema(schema_id):
     """Fetches report schema from the database."""
-    schema_obj = ReportSchema.objects.filter(report_type=report_type).first()
+    if not schema_id: return []
+    schema_obj = ReportSchema.objects.filter(id=schema_id).first()
     return schema_obj.get_column_list() if schema_obj else []
 
 # Keys that usually indicate a new record starts
@@ -21,25 +23,19 @@ PRIMARY_KEYS = ['CODIGO', 'COD INTERNO', 'REF', 'REFERENCIA', 'CPF', 'CNPJ', 'DO
 def normalize_text(text):
     if not isinstance(text, str):
         return text
-    # Uppercase
     text = text.upper()
-    # Remove accents
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
     return text.strip()
 
 def clean_mask(text):
     if not isinstance(text, str):
         return text
-    # Remove dots, dashes, slashes (CPF/CNPJ)
     return re.sub(r'[\.\-\/]', '', text).strip()
 
 def format_currency(text):
     if not isinstance(text, str):
         return text
-    # Remove R$ and white space
     text = text.replace('R$', '').strip()
-    # Replace dots (thousands) with empty and comma (decimal) with dots
-    # Example: 1.234,56 -> 1234.56
     text = text.replace('.', '').replace(',', '.')
     try:
         return float(text)
@@ -49,7 +45,6 @@ def format_currency(text):
 def format_date(text):
     if not isinstance(text, str):
         return text
-    # Try common formats and return YYYY-MM-DD for BAT
     for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
         try:
             return pd.to_datetime(text, format=fmt).strftime('%Y-%m-%d')
@@ -57,7 +52,7 @@ def format_date(text):
             continue
     return text
 
-def parse_multi_key_value_block(text, start_keyword):
+def parse_multi_key_value_block(text, start_keyword, schema_id=None):
     """
     Parses messy text where multiple KEY: VALUE pairs might exist on the same line,
     records are broken by arbitrary newlines, padded with dots, or otherwise noisy.
@@ -88,7 +83,7 @@ def parse_multi_key_value_block(text, start_keyword):
     # Split into blocks, case insensitive
     blocks = re.split(re.escape(standard_start), stream, flags=re.IGNORECASE)
     
-    mapping = get_dynamic_mapping()
+    mapping = get_dynamic_mapping(schema_id)
     
     # Regex to handle padded keys like "Documento.........:"
     key_pattern = r'\b([A-Za-zÀ-ÿ0-9ºª°]+(?:\s*[/-]\s*[A-Za-zÀ-ÿ0-9ºª°]+)*)[\.\s]*:'
@@ -134,7 +129,7 @@ def is_kv_format(text):
     ratio = kv_count / len(lines)
     return ratio > 0.4
 
-def parse_key_value_text(text, custom_separators=None):
+def parse_key_value_text(text, custom_separators=None, schema_id=None):
     """
     Parses "ugly" text reports formatted as KEY: VALUE lists.
     Flattens fields into professional records.
@@ -145,7 +140,7 @@ def parse_key_value_text(text, custom_separators=None):
     separators = PRIMARY_KEYS + (custom_separators or [])
     separators = [normalize_text(s) for s in separators]
     
-    mapping = get_dynamic_mapping()
+    mapping = get_dynamic_mapping(schema_id)
     
     lines = text.split('\n')
     for line in lines:
@@ -179,7 +174,7 @@ def parse_key_value_text(text, custom_separators=None):
         
     return records
 
-def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignore_patterns=None):
+def extract_pdf_data(file_obj, schema_id=None, magic_keywords=None, ignore_patterns=None):
     """
     Extracts tabular data from a PDF file using multiple fallback strategies and robust alignment.
     """
@@ -187,16 +182,12 @@ def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignor
     text_content = ""
     
     with pdfplumber.open(file_obj) as pdf:
-        # Some broken textual pages might not return anything with default parameters
-        # However, for pure text layout preserving, extract_text usually handles properly
         for page in pdf.pages:
             text_content += (page.extract_text() or "") + "\n"
 
     if ignore_patterns:
         for pattern in ignore_patterns:
-            # Pattern regex replace or static replace
             try:
-                # If pattern represents regex (like 'Pagina \d')
                 text_content = re.sub(pattern, "", text_content, flags=re.IGNORECASE)
             except Exception:
                 text_content = text_content.replace(pattern, "")
@@ -205,24 +196,24 @@ def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignor
     if magic_keywords and isinstance(magic_keywords, list) and len(magic_keywords) > 0:
         for start_kw in magic_keywords:
             if start_kw.strip():
-                block_records = parse_multi_key_value_block(text_content, start_kw)
+                block_records = parse_multi_key_value_block(text_content, start_kw, schema_id=schema_id)
                 if block_records:
                     df = pd.DataFrame(block_records)
-                    return enforce_schema(df, report_type)
+                    return enforce_schema(df, schema_id)
 
     # PRIORITIZE KV Parser if density is high
     if is_kv_format(text_content):
-        kv_records = parse_key_value_text(text_content, magic_keywords)
+        kv_records = parse_key_value_text(text_content, magic_keywords, schema_id=schema_id)
         if kv_records:
             df = pd.DataFrame(kv_records)
-            return enforce_schema(df, report_type)
+            return enforce_schema(df, schema_id)
 
-    # STANDBY: Try Block parser with default 'CLIENTE', 'CODIGO', 'NOME'
+    # STANDBY: Try Block parser
     for guess_kw in ['CLIENTE:', 'CLIENTE Nº', 'CODIGO:', 'NOME:']:
-        block_records = parse_multi_key_value_block(text_content, guess_kw)
+        block_records = parse_multi_key_value_block(text_content, guess_kw, schema_id=schema_id)
         if block_records and len(block_records) > 0 and len(block_records[0].keys()) > 1:
             df = pd.DataFrame(block_records)
-            return enforce_schema(df, report_type)
+            return enforce_schema(df, schema_id)
 
     # FALLBACK: Try Table Extraction
     with pdfplumber.open(file_obj) as pdf:
@@ -268,13 +259,13 @@ def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignor
         headers.append(h_str if h_str else f"COLUNA_{i+1}")
 
     df = pd.DataFrame(normalized_data[1:], columns=headers)
-    return enforce_schema(df, report_type)
+    return enforce_schema(df, schema_id)
 
-def enforce_schema(df, report_type):
+def enforce_schema(df, schema_id=None):
     """
-    Ensures the DataFrame follows the standard BAT schema for the report type.
+    Ensures the DataFrame follows the target BAT schema.
     """
-    schema = get_dynamic_schema(report_type)
+    schema = get_dynamic_schema(schema_id)
     if not schema:
         # Return as is but cleaned
         for col in df.columns:
@@ -282,7 +273,7 @@ def enforce_schema(df, report_type):
         return df
     
     final_df = pd.DataFrame(columns=schema)
-    mapping = get_dynamic_mapping()
+    mapping = get_dynamic_mapping(schema_id)
     
     # Map existing columns to the schema
     for col in df.columns:
@@ -290,7 +281,6 @@ def enforce_schema(df, report_type):
         target_col = mapping.get(norm_col, norm_col)
         
         # Auto-Fuzzy Mapeamento Inteligente
-        # Se não mapeou direto, tentamos remover caracteres especiais (ex: "CPF / CNPJ" -> "CPFCNPJ" -> "CPF_CNPJ")
         if target_col not in schema:
             clean_norm = re.sub(r'[^A-Z0-9]', '', norm_col)
             for s_col in schema:
@@ -299,9 +289,8 @@ def enforce_schema(df, report_type):
                     target_col = s_col
                     break
         
-        # Se após tudo a coluna mapear para o Schema, injeta ela. Senão, DROPA o "lixo".
+        # Se após tudo a coluna mapear para o Schema, injeta ela.
         if target_col in schema:
-            # Se já existir algo preenchido nessa coluna, junta com espaço para não sobreescrever
             if target_col in final_df and not final_df[target_col].isna().all() and not (final_df[target_col] == "").all():
                 final_df[target_col] = final_df[target_col].astype(str).str.strip() + " " + df[col].astype(str).str.strip()
             else:
@@ -313,7 +302,7 @@ def enforce_schema(df, report_type):
         
     return final_df
 
-def apply_bat_rules(df, report_type):
+def apply_bat_rules(df, schema_id=None):
     """
     Applies specific BAT formatting rules based on report type.
     """
@@ -339,7 +328,7 @@ def audit_csv_classic(pdf_file, csv_file):
     If the extracted rows don't match the CSV, it assumes error and throws the "re-extracted" pdf as fix.
     """
     pdf_file.seek(0)
-    df_pdf = extract_pdf_data(pdf_file, 'generic')
+    df_pdf = extract_pdf_data(pdf_file, schema_id=None)
     pdf_file.seek(0)
     
     csv_file.seek(0)
