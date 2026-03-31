@@ -1,24 +1,20 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}Inicio - Conversor BAT{% endblock %}
+{% block title %}Conversor PDF para CSV{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center fade-in">
-    <div class="col-md-8 col-lg-6">
-        <div class="hero-section">
-            <h1 class="hero-title">Conversor PDF para CSV</h1>
-            <p class="lead text-muted">Extrair dados de PDF para CSV de forma rápida e eficiente.</p>
+    <div class="col-md-10 col-lg-8">
+        <div class="text-center mb-5">
+            <h1 class="fw-bold mb-3"><i class="bi bi-file-earmark-pdf text-danger me-2"></i>PDF para CSV</h1>
+            <p class="lead text-muted">Converta relatórios em PDF para planilhas limpas e organizadas</p>
         </div>
 
-        <div class="card p-4 p-md-5">
+        <div class="card shadow-sm border-0 rounded-4 p-4 p-md-5 mb-4">
             <div class="card-body">
-                <h4 class="card-title mb-4 fw-bold">
-                    <i class="bi bi-cloud-upload me-2 text-primary"></i>Upload
-                </h4>
-                
                 {% if error %}
-                    <div class="alert alert-danger alert-dismissible fade show rounded-4" role="alert">
+                    <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
@@ -27,18 +23,98 @@
                 <form method="post" enctype="multipart/form-data" id="uploadForm">
                     {% csrf_token %}
                     
-                    <div class="mb-4">
-                        {% bootstrap_form form %}
+                    <div class="row g-4 mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Arquivo PDF</label>
+                            <input type="file" name="pdf_file" class="form-control form-control-lg bg-light border-0" accept=".pdf" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tipo de Relatório</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-list-task"></i></span>
+                                <select name="report_type" class="form-select bg-light border-0">
+                                    <option value="generic">Relatório Genérico</option>
+                                    <option value="clientes">Clientes</option>
+                                    <option value="produtos">Produtos</option>
+                                    <option value="fornecedores">Fornecedores</option>
+                                    <option value="vendas">Vendas</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Palavra-Chave Manual</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-key"></i></span>
+                                <input type="text" name="magic_keywords" id="kwInput" class="form-control bg-light border-0" placeholder="Ex: Cliente: ou Codigo:">
+                            </div>
+                            <div class="form-text mt-1 text-muted small"><i class="bi bi-info-circle me-1"></i>Para relatórios de "bloco".</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Delimitador</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-code"></i></span>
+                                <input type="text" name="delimiter" class="form-control bg-light border-0 text-center" placeholder=";" value=";" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Encoding</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-file-earmark-font"></i></span>
+                                <select name="encoding" class="form-select bg-light border-0 text-center">
+                                    <option value="utf-8">UTF-8</option>
+                                    <option value="windows-1252">Windows-1252</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Ignorar (Opcional)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-0"><i class="bi bi-slash-circle"></i></span>
+                                <input type="text" name="ignore_patterns" id="igInput" class="form-control bg-light border-0" placeholder="Ex: ---, ***">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                            <span id="btnText"><i class="bi bi-gear-fill me-2"></i>Gerar CSV</span>
+                    <!-- AI Switch Section -->
+                    <div class="card bg-primary bg-opacity-10 border-0 rounded-4 p-3 mb-4">
+                        <div class="form-check form-switch d-flex align-items-center mb-0">
+                            <input class="form-check-input fs-4 me-3 mt-0" type="checkbox" role="switch" name="use_ai" id="useAiSwitch">
+                            <label class="form-check-label fw-bold text-primary" for="useAiSwitch" style="cursor: pointer;">Usar Extração Inteligente com a IA Gemini</label>
+                        </div>
+                        <div class="mt-3 collapse" id="aiKeyContainer">
+                            <label class="form-label text-primary small fw-semibold mb-1">Insira sua Chave de API do Google AI Studio</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-0 text-success"><i class="bi bi-stars"></i></span>
+                                <input type="password" name="gemini_api_key" class="form-control border-0" value="{{ ia|default:'' }}" placeholder="Cole sua API Key aqui (ex: AIzaSy...)">
+                            </div>
+                            <div class="form-text text-muted mt-2 lh-sm" style="font-size: 0.8rem;">
+                                Ao utilizar a IA, a palavra-chave manual não é necessária. A Inteligência lerá todo o documento livremente e construirá as colunas para você.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm fw-bold" id="submitBtn">
+                            <span id="btnText"><i class="bi bi-arrow-right-circle me-2"></i>Converter PDF</span>
                             <span id="btnLoading" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
 
+        <div class="card shadow-sm border-0 rounded-4 bg-light p-4 mt-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Duas formas de extrair:</h6>
+                <ul class="text-secondary small mb-0 ps-3" style="line-height:1.6;">
+                    <li class="mb-2"><strong>Via Palavra-Chave (Clássico):</strong> Para relatórios previsíveis. Digite a palavra exata que inicia cada bloco de cliente (Ex: <strong>Cliente:</strong>). O sistema recorta linha por linha.</li>
+                    <li><strong>Via Inteligência Artificial (Gemini):</strong> Para PDFs completamente destruídos. Ative a caixinha acima e forneça sua chave do Google AI. A IA lerá tudo de forma revolucionária e padronizará conforme o seu modelo.</li>
+                </ul>
             </div>
         </div>
     </div>
@@ -47,14 +123,133 @@
 
 {% block extra_js %}
 <script>
-    document.getElementById('uploadForm').addEventListener('submit', function() {
+    const aiSwitch = document.getElementById('useAiSwitch');
+    const aiContainer = document.getElementById('aiKeyContainer');
+    const kwInput = document.getElementById('kwInput');
+    const igInput = document.getElementById('igInput');
+
+    aiSwitch.addEventListener('change', function() {
+        if(this.checked) {
+            aiContainer.classList.add('show');
+            kwInput.disabled = true;
+            igInput.disabled = true;
+        } else {
+            aiContainer.classList.remove('show');
+            kwInput.disabled = false;
+            igInput.disabled = false;
+        }
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const form = this;
         const btn = document.getElementById('submitBtn');
         const text = document.getElementById('btnText');
         const loading = document.getElementById('btnLoading');
         
+        // Setup initial loading state
         btn.disabled = true;
-        text.classList.add('d-none');
         loading.classList.remove('d-none');
+        
+        // If AI is checked, provide didactic AI feedback
+        if (aiSwitch.checked) {
+            text.innerHTML = '<i class="bi bi-robot me-2"></i>A IA está lendo seu documento...';
+        } else {
+            text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Convertendo...';
+        }
+        
+        // Set dynamic progression for AI (gives the user a sense of "work being done")
+        let aiInterval;
+        if (aiSwitch.checked) {
+            let step = 0;
+            const messages = [
+                "A IA está processando as páginas...",
+                "Estruturando os dados em colunas...",
+                "Gerando o arquivo final..."
+            ];
+            aiInterval = setInterval(() => {
+                text.innerHTML = `<i class="bi bi-robot me-2"></i>${messages[step % messages.length]}`;
+                step++;
+            }, 5000);
+        }
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            // Se for HTML (Deu algum erro renderizado no Django na mesma tela)
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("text/html")) {
+                const htmlText = await response.text();
+                // O render do django retorna a pagina inteira. Vamos reconstruir ou mostrar.
+                document.open();
+                document.write(htmlText);
+                document.close();
+                return;
+            }
+
+            // Se for CSV
+            if (response.ok) {
+                const blob = await response.blob();
+                
+                // Get filename from header if possible
+                let filename = 'relatorio_convertido.csv';
+                const disposition = response.headers.get('content-disposition');
+                if (disposition && disposition.includes('filename="')) {
+                    filename = disposition.split('filename="')[1].split('"')[0];
+                }
+
+                // Trigger Download automatically
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                
+                // Finalização Sucesso - Limpar campos com elegância!
+                // Guardamos a key antes pra resetar apenas o resto
+                const currentApikey = form.elements['gemini_api_key'].value;
+                form.reset();
+                form.elements['gemini_api_key'].value = currentApikey;
+                
+                // Se a IA estava ativa, o form.reset desativa o check, então reaplicamos os estados default se desejar, mas o reset reseta pro estado original limpo.
+                aiContainer.classList.remove('show');
+                kwInput.disabled = false;
+                igInput.disabled = false;
+                
+                text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Download Concluído!';
+                setTimeout(() => {
+                    text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Converter Novo PDF';
+                    btn.disabled = false;
+                    loading.classList.add('d-none');
+                }, 3000);
+                
+            } else {
+                throw new Error('Falha na resposta do servidor.');
+            }
+
+        } catch (error) {
+            console.error(error);
+            text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
+            btn.disabled = false;
+            loading.classList.add('d-none');
+            setTimeout(() => {
+                text.innerHTML = '<i class="bi bi-arrow-right-circle me-2"></i>Tentar Novamente';
+            }, 3000);
+            
+        } finally {
+            if (aiInterval) clearInterval(aiInterval);
+        }
     });
 </script>
 {% endblock %}

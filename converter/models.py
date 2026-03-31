@@ -33,3 +33,7 @@ class ReportSchema(models.Model):
 
     def get_column_list(self):
         return [c.strip() for c in self.columns.split(',') if c.strip()]
+
+class IA(models.Model):
+    api_key = models.CharField(max_length=100, verbose_name="Chave de API")
+    

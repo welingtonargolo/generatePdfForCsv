@@ -50,3 +50,15 @@ class PDFUploadForm(forms.Form):
         help_text='Sequ\u00eancias a remover (ex: ---, ***). Separar por v\u00edrgula.',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: ---, RELATORIO'})
     )
+    use_ai = forms.BooleanField(
+        required=False,
+        label='Extração Inteligente (IA)',
+        help_text='Ative para usar o Google Gemini na extração.',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    gemini_api_key = forms.CharField(
+        required=False,
+        label='Chave da API do Gemini',
+        help_text='Necessária se a Extração Inteligente estiver ativada.',
+        widget=forms.PasswordInput(attrs={'class': 'form-control bg-light border-0', 'placeholder': 'AIzaSy...'})
+    )

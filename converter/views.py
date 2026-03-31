@@ -3,7 +3,7 @@ from django.views import View
 from django.http import HttpResponse, JsonResponse
 from .forms import PDFUploadForm
 from .utils import extract_pdf_data, apply_bat_rules
-from .models import MappingRule, ReportSchema
+from .models import MappingRule, ReportSchema, IA
 import pandas as pd
 from io import BytesIO
 
@@ -12,7 +12,9 @@ class HomeView(View):
 
     def get(self, request):
         form = PDFUploadForm()
-        return render(request, self.template_name, {'form': form})
+        ia_obj = IA.objects.first()
+        ia_key = ia_obj.api_key if ia_obj else ''
+        return render(request, self.template_name, {'form': form, 'ia': ia_key})
 
     def post(self, request):
         form = PDFUploadForm(request.POST, request.FILES)
@@ -27,14 +29,33 @@ class HomeView(View):
             ignore_patterns_raw = form.cleaned_data['ignore_patterns']
             ignore_patterns = [p.strip() for p in ignore_patterns_raw.split(',')] if ignore_patterns_raw else []
 
+            use_ai = form.cleaned_data.get('use_ai')
+            gemini_api_key = form.cleaned_data.get('gemini_api_key')
+
             # Process PDF
             try:
-                df = extract_pdf_data(pdf_file, report_type, magic_keywords, ignore_patterns)
+                if use_ai and gemini_api_key:
+                    from .ai_extraction import extract_pdf_with_ai
+                    from .models import IA
+                    ia = IA.objects.filter(api_key=gemini_api_key).first()
+                    if not ia:
+                        ia = IA.objects.create(api_key=gemini_api_key)
+                    else:
+                        ia.api_key = gemini_api_key
+                        ia.save()
+                    print(f"Gemini API Key: {gemini_api_key}")
+
+
+                    df = extract_pdf_with_ai(pdf_file, report_type, gemini_api_key)
+                elif use_ai and not gemini_api_key:
+                    raise Exception("A extração inteligente requer a inserção da Chave de API do Gemini.")
+                else:
+                    df = extract_pdf_data(pdf_file, report_type, magic_keywords, ignore_patterns)
                 
                 if df.empty:
                     return render(request, self.template_name, {
                         'form': form,
-                        'error': 'Nenhuma tabela encontrada no PDF. Verifique se o arquivo possui texto selecion\u00e1vel.'
+                        'error': 'Nenhuma tabela ou bloco válido encontrado no PDF.'
                     })
 
                 # Apply BAT rules
@@ -46,7 +67,6 @@ class HomeView(View):
                 if len(delimiter) == 1:
                     df.to_csv(buffer, index=False, sep=delimiter, encoding=encoding)
                 else:
-                    # Manual CSV generation for multi-character delimiters
                     csv_text = delimiter.join(df.columns) + "\n"
                     for _, row in df.iterrows():
                         csv_text += delimiter.join([str(val) for val in row]) + "\n"
@@ -66,7 +86,7 @@ class HomeView(View):
                     'error': f'Erro ao processar PDF: {str(e)}'
                 })
 
-        return render(request, self.template_name, {'form': form})
+        return render(request, self.template_name, {'form': form, 'ia': IA.objects.filter().first().api_key if IA.objects.filter().first() else ''})
 
 class SettingsView(View):
     template_name = 'converter/settings.html'

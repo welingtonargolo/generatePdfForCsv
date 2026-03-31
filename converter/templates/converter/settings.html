@@ -5,45 +5,52 @@
 {% block content %}
 <div class="row fade-in">
     <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
-        <h2 class="hero-title mb-0">Configurações</h2>
-        <a href="{% url 'converter:home' %}" class="btn btn-secondary">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-gear-fill text-primary me-2"></i>Configurações</h2>
+            <p class="text-muted mb-0">Ajuste regras de importação e esquemas do sistema</p>
+        </div>
+        <a href="{% url 'converter:home' %}" class="btn btn-outline-secondary rounded-pill shadow-sm px-4">
             <i class="bi bi-arrow-left me-2"></i>Voltar
         </a>
     </div>
 
-    <div class="col-lg-8">
+    <div class="col-lg-8 mb-4">
         <!-- Mapping Rules Card -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title fw-bold mb-4">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+            <div class="card-body p-4">
+                <h5 class="card-title fw-bold mb-3">
                     <i class="bi bi-translate text-primary me-2"></i>Regras de Mapeamento
                 </h5>
-                <p class="text-muted small">Defina como o sistema deve "traduzir" as colunas do PDF para o padrão CSV.</p>
+                <p class="text-secondary small mb-4">Defina como o sistema deve "traduzir" as chaves lidas no PDF para as colunas exatas do CSV padrão BAT.</p>
                 
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Chave no PDF</th>
-                                <th>Coluna no CSV</th>
-                                <th class="text-end">Ações</th>
+                                <th class="ps-4">Chave no PDF</th>
+                                <th>Coluna no BAT</th>
+                                <th class="text-end pe-4">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for rule in mappings %}
                             <tr>
-                                <td class="fw-bold">{{ rule.source_key }}</td>
-                                <td><span class="badge bg-primary rounded-pill">{{ rule.target_key }}</span></td>
-                                <td class="text-end">
+                                <td class="fw-bold ps-4 text-secondary">{{ rule.source_key }}</td>
+                                <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle rounded-pill px-3">{{ rule.target_key }}</span></td>
+                                <td class="text-end pe-4">
                                     <form method="post" class="d-inline">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_mapping">
                                         <input type="hidden" name="rule_id" value="{{ rule.id }}">
-                                        <button type="submit" class="btn btn-link text-danger p-0" title="Excluir">
-                                            <i class="bi bi-trash fs-5"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle p-2" title="Excluir">
+                                            <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
                                 </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-4">Nenhuma regra cadastrada.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -51,20 +58,20 @@
                 </div>
 
                 <!-- Add New Mapping form -->
-                <div class="mt-4 p-3 bg-light rounded-4">
-                    <h6 class="fw-bold mb-3">Adicionar Nova Regra</h6>
-                    <form method="post" class="row g-2">
+                <div class="mt-4 p-4 bg-light rounded-4 border-0">
+                    <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-plus-circle me-1"></i>Adicionar Nova Regra</h6>
+                    <form method="post" class="row g-3 align-items-center">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="add_mapping">
                         <div class="col-md-5">
-                            <input type="text" name="source_key" class="form-control" placeholder="Ex: VALOR PRODUTO" required>
+                            <input type="text" name="source_key" class="form-control bg-white border-0" placeholder="Ex: VALOR DO PRODUTO" required>
                         </div>
                         <div class="col-md-5">
-                            <input type="text" name="target_key" class="form-control" placeholder="Ex: PRECO_VENDA" required>
+                            <input type="text" name="target_key" class="form-control bg-white border-0" placeholder="Ex: PRECO_VENDA" required>
                         </div>
                         <div class="col-md-2 d-grid">
-                            <button type="submit" class="btn btn-primary px-0">
-                                <i class="bi bi-plus-lg"></i>
+                            <button type="submit" class="btn btn-primary rounded-pill shadow-sm fw-bold">
+                                Criar
                             </button>
                         </div>
                     </form>
@@ -73,29 +80,44 @@
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-4 mb-4">
         <!-- Schemas Card -->
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title fw-bold mb-4">
-                    <i class="bi bi-layout-three-columns text-primary me-2"></i>Esquemas
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+            <div class="card-body p-4">
+                <h5 class="card-title fw-bold mb-3">
+                    <i class="bi bi-layout-three-columns text-primary me-2"></i>Esquemas CSV
                 </h5>
-                <p class="text-muted small">Defina a ordem e as colunas obrigatórias por tipo de relatório.</p>
+                <p class="text-secondary small mb-4">Defina a ordem e as colunas obrigatórias para cada tipo de relatório gerado.</p>
 
-                {% for schema in schemas %}
-                <div class="mb-4">
-                    <label class="form-label fw-bold">{{ schema.get_report_type_display }}</label>
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="update_schema">
-                        <input type="hidden" name="schema_id" value="{{ schema.id }}">
-                        <textarea name="columns" class="form-control small mb-2" rows="4">{{ schema.columns }}</textarea>
-                        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-                            <i class="bi bi-save me-1"></i>Salvar Esquema
-                        </button>
-                    </form>
+                <div class="accordion accordion-flush" id="schemasAccordion">
+                    {% for schema in schemas %}
+                    <div class="accordion-item border rounded-3 mb-3 overflow-hidden shadow-sm">
+                        <h2 class="accordion-header" id="heading{{ schema.id }}">
+                            <button class="accordion-button collapsed bg-light fw-bold text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ schema.id }}" aria-expanded="false" aria-controls="collapse{{ schema.id }}">
+                                {{ schema.get_report_type_display }}
+                            </button>
+                        </h2>
+                        <div id="collapse{{ schema.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ schema.id }}" data-bs-parent="#schemasAccordion">
+                            <div class="accordion-body bg-white">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update_schema">
+                                    <input type="hidden" name="schema_id" value="{{ schema.id }}">
+                                    <label class="form-label small text-muted">Colunas (separadas por vírgula)</label>
+                                    <textarea name="columns" class="form-control bg-light border-0 small mb-3" rows="4">{{ schema.columns }}</textarea>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-sm btn-primary rounded-pill shadow-sm fw-bold">
+                                            <i class="bi bi-save me-1"></i>Salvar Esquema
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                        <div class="text-center text-muted py-4">Nenhum esquema cadastrado.</div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
         </div>
     </div>

@@ -16,7 +16,7 @@ def get_dynamic_schema(report_type):
     return schema_obj.get_column_list() if schema_obj else []
 
 # Keys that usually indicate a new record starts
-PRIMARY_KEYS = ['CODIGO', 'COD INTERNO', 'REF', 'REFERENCIA', 'CPF', 'CNPJ', 'NOME']
+PRIMARY_KEYS = ['CODIGO', 'COD INTERNO', 'REF', 'REFERENCIA', 'CPF', 'CNPJ', 'DOCUMENTO', 'NOME', 'CLIENTE']
 
 def normalize_text(text):
     if not isinstance(text, str):
@@ -57,6 +57,71 @@ def format_date(text):
             continue
     return text
 
+def parse_multi_key_value_block(text, start_keyword):
+    """
+    Parses messy text where multiple KEY: VALUE pairs might exist on the same line,
+    records are broken by arbitrary newlines, padded with dots, or otherwise noisy.
+    
+    Implements a robust Continuous Stream approach:
+    1. Fixes fragmentation in the start_keyword itself (e.g., "Clien \\n te:" to "Cliente:").
+    2. Flattens the text into a single stream.
+    3. Splits by start_keyword.
+    4. Extracts all standard and dot-padded inline keys.
+    """
+    records = []
+    
+    kw_chars = [re.escape(c) for c in start_keyword if not c.isspace()]
+    if not kw_chars:
+        return records
+        
+    fuzzy_pattern = r'\s*'.join(kw_chars)
+    standard_start = start_keyword.strip()
+    
+    try:
+        text = re.sub(fuzzy_pattern, standard_start, text, flags=re.IGNORECASE)
+    except Exception:
+        pass
+
+    # Flatten text stream to remove line breaks
+    stream = text.replace('\n', ' ')
+    
+    # Split into blocks, case insensitive
+    blocks = re.split(re.escape(standard_start), stream, flags=re.IGNORECASE)
+    
+    mapping = get_dynamic_mapping()
+    
+    # Regex to handle padded keys like "Documento.........:"
+    key_pattern = r'\b([A-Za-zÀ-ÿ0-9ºª°]+(?:\s*[/-]\s*[A-Za-zÀ-ÿ0-9ºª°]+)*)[\.\s]*:'
+    
+    for block in blocks[1:]: 
+        block_text = f"{standard_start} {block}"
+        
+        matches = list(re.finditer(key_pattern, block_text))
+        record = {}
+        
+        if not matches:
+            continue
+            
+        for i, match in enumerate(matches):
+            raw_key = match.group(1).strip()
+            
+            start_val = match.end()
+            end_val = matches[i+1].start() if i + 1 < len(matches) else len(block_text)
+            
+            value = block_text[start_val:end_val].strip()
+            if value.endswith('-'):
+                value = value[:-1].strip()
+                
+            key_norm = normalize_text(raw_key)
+            std_key = mapping.get(key_norm, key_norm)
+            
+            record[std_key] = value
+            
+        records.append(record)
+        
+    return records
+
+
 def is_kv_format(text):
     """
     Detects if the text has a high density of KEY: VALUE patterns.
@@ -77,7 +142,6 @@ def parse_key_value_text(text, custom_separators=None):
     records = []
     current_record = {}
     
-    # Merge custom separators with default primary keys
     separators = PRIMARY_KEYS + (custom_separators or [])
     separators = [normalize_text(s) for s in separators]
     
@@ -89,7 +153,6 @@ def parse_key_value_text(text, custom_separators=None):
         if not line:
             continue
             
-        # Extract KEY: VALUE pattern (only split on the FIRST colon)
         if ':' in line:
             parts = line.split(':', 1)
             raw_key = parts[0].strip()
@@ -98,9 +161,6 @@ def parse_key_value_text(text, custom_separators=None):
             key_norm = normalize_text(raw_key)
             standard_key = mapping.get(key_norm, key_norm)
 
-            # Record separation logic:
-            # 1. Physical separator (dashes)
-            # 2. Key is a primary key and is already present in the current_record
             if '---' in line or (key_norm in separators and standard_key in current_record):
                 if current_record:
                     records.append(current_record)
@@ -110,8 +170,6 @@ def parse_key_value_text(text, custom_separators=None):
 
             current_record[standard_key] = value
         else:
-            # If it doesn't match KEY: VALUE, and we have an ongoing record, 
-            # append to the last seen field (usually a wrap-around description)
             if current_record:
                 last_key = list(current_record.keys())[-1]
                 current_record[last_key] += " " + line
@@ -129,19 +187,41 @@ def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignor
     text_content = ""
     
     with pdfplumber.open(file_obj) as pdf:
+        # Some broken textual pages might not return anything with default parameters
+        # However, for pure text layout preserving, extract_text usually handles properly
         for page in pdf.pages:
             text_content += (page.extract_text() or "") + "\n"
 
-    # PRIORITY: Clean text content from ignore patterns before parsing
     if ignore_patterns:
         for pattern in ignore_patterns:
-            text_content = text_content.replace(pattern, "")
+            # Pattern regex replace or static replace
+            try:
+                # If pattern represents regex (like 'Pagina \d')
+                text_content = re.sub(pattern, "", text_content, flags=re.IGNORECASE)
+            except Exception:
+                text_content = text_content.replace(pattern, "")
+
+    # PRIORITIZE Block Parser if user provided magic_keyword
+    if magic_keywords and isinstance(magic_keywords, list) and len(magic_keywords) > 0:
+        for start_kw in magic_keywords:
+            if start_kw.strip():
+                block_records = parse_multi_key_value_block(text_content, start_kw)
+                if block_records:
+                    df = pd.DataFrame(block_records)
+                    return enforce_schema(df, report_type)
 
     # PRIORITIZE KV Parser if density is high
     if is_kv_format(text_content):
         kv_records = parse_key_value_text(text_content, magic_keywords)
         if kv_records:
             df = pd.DataFrame(kv_records)
+            return enforce_schema(df, report_type)
+
+    # STANDBY: Try Block parser with default 'CLIENTE', 'CODIGO', 'NOME'
+    for guess_kw in ['CLIENTE:', 'CLIENTE Nº', 'CODIGO:', 'NOME:']:
+        block_records = parse_multi_key_value_block(text_content, guess_kw)
+        if block_records and len(block_records) > 0 and len(block_records[0].keys()) > 1:
+            df = pd.DataFrame(block_records)
             return enforce_schema(df, report_type)
 
     # FALLBACK: Try Table Extraction
@@ -167,13 +247,11 @@ def extract_pdf_data(file_obj, report_type='generic', magic_keywords=None, ignor
                         all_data.extend(table)
 
     if not all_data:
-        # Final resort Strategy 2: Text splitting by columns
         lines = [re.split(r'\s{2,}|\t', line.strip()) for line in text_content.split('\n') if line.strip()]
         if not lines:
             return pd.DataFrame()
         all_data = lines
 
-    # Robust table cleaning and DataFrame creation
     all_data = [row for row in all_data if any(val is not None and str(val).strip() != "" for val in row)]
     if not all_data:
         return pd.DataFrame()
@@ -203,7 +281,6 @@ def enforce_schema(df, report_type):
             df[col] = df[col].apply(lambda x: str(x).strip() if x is not None else "")
         return df
     
-    # Create a new DF with the schema columns
     final_df = pd.DataFrame(columns=schema)
     mapping = get_dynamic_mapping()
     
@@ -215,13 +292,10 @@ def enforce_schema(df, report_type):
         if target_col in schema:
             final_df[target_col] = df[col]
         else:
-            # Add unmapped columns to the end
             final_df[col] = df[col]
             
-    # Clean results
     final_df = final_df.fillna("")
     for col in final_df.columns:
-        # Final cleanup: trim and remove artifacts
         final_df[col] = final_df[col].apply(lambda x: str(x).strip())
         
     return final_df
@@ -230,23 +304,17 @@ def apply_bat_rules(df, report_type):
     """
     Applies specific BAT formatting rules based on report type.
     """
-    # Normalize all column names
     df.columns = [normalize_text(c) for c in df.columns]
     
-    # Generic cleaning
     for col in df.columns:
-        # Normalize text content
         df[col] = df[col].apply(normalize_text)
         
-        # Identify masks (CPF/CNPJ-like)
         if any(keyword in col for keyword in ['CPF', 'CNPJ', 'DOCUMENTO']):
             df[col] = df[col].apply(clean_mask)
             
-        # Identify currency
         if any(keyword in col for keyword in ['VALOR', 'PRECO', 'TOTAL', 'CUSTO']):
             df[col] = df[col].apply(format_currency)
             
-        # Identify dates
         if any(keyword in col for keyword in ['DATA', 'VENCIMENTO', 'EMISSAO']):
             df[col] = df[col].apply(format_date)
             
