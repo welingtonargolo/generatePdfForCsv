@@ -1,139 +1,72 @@
 # 📄 Conversor Inteligente de PDF para CSV (com Integração Google Gemini)
 
-Este é um sistema da web avançado criado em **Python (Django)** desenvolvido para solucionar um problema complexo: **a extração e estruturação de dados em relatórios PDF "caóticos" e despadronizados**. O objetivo da aplicação é ler PDFs impossíveis de serem copiados manualmente e convertê-los perfeitamente em planilhas CSV estruturadas, já mapeadas para a importação em sistemas corporativos (como o sistema BAT).
+Este é um ecossistema da web avançado criado em **Python (Django)** para solucionar um problema complexo corporativo: **a extração, estruturação e auditoria de dados em relatórios PDF despadronizados**. O objetivo da aplicação é ler PDFs complexos e convertê-los perfeitamente em planilhas CSV estruturadas e auditadas para importação.
 
-O projeto une o clássico parseamento baseado em expressões regulares (*Stream Block Parsing*) com o **estado da arte em Inteligência Artificial**, integrando diretamente a API do **Google Gemini** para ler relatórios complexos de "forma humana".
+O projeto une motores rigorosos de Expressões Regulares com o **estado da arte em Inteligência Artificial**, integrando diretamente a API do **Google Gemini 2.5 Flash** para ler e auditar documentos como um ser humano.
 
 ---
 
 ## 🎯 Principais Funcionalidades
 
-1. **Extração de Texto Complexo (Block Parsing):** Quebra textos embaralhados, campos divididos em múltiplas linhas e ruídos, reconstruindo os dados através de *Fuzzy Matching* de Palavras-Chave.
-2. **Extração Inteligente por IA (Google Gemini 2.5 Flash):** Quando a extração regular falha por conta do caos no PDF, o sistema envia o documento à IA, que analisa semanticamente o arquivo e devolve os dados perfeitamente em formato JSON estruturado, convertendo-o para CSV.
-3. **Mapeamento de Regras Dinâmico:** Um painel de configurações (Settings) onde o usuário define que a coluna extraída como `"Documento"` no PDF deve se transformar em `"CPF_CNPJ"` no CSV final, adequando as saídas aos requisitos de outros softwares.
-4. **Schemas de Relatório Rigorosos:** Aplicação de colunas obrigatórias com base no tipo de relatório (`Clientes`, `Vendas`, `Produtos`).
+1. **Gestão Dinâmica de Esquemas:** Crie relatórios personalizados ("Clientes", "Balancete", etc.) sem limites estruturais fixos.
+2. **Injeção Rápida via CSV:** Para criar a estrutura de um esquema novo, basta fazer o upload de um CSV Vazio apenas com as colunas-alvo no cabeçalho; o sistema aprende e adapta o banco de dados instantaneamente.
+3. **Mapeamento de Regras Aninhadas (De -> Para):** Para cada Esquema de relatório, crie Regras de Normalização isoladas para que o sistema saiba renomear instâncias (`"Documento" -> "CPF_CNPJ"`).
+4. **Extração Inteligente por IA:** Envie PDFs massivamente destruídos à IA. Ela analisa as linhas semânticas do arquivo e devolve tudo higienizado no molde do seu Esquema.
+5. **Auditor Semântico de CSV:** Um revolucionário validador. Envie o PDF Original e o CSV recém-extraído. O Gemini auditará ativamente para checar se houve omissão de clientes, esmagamento de colunas ou falhas estruturais. Caso encontre um erro, a IA gerará um novo CSV perfeito corrigido na hora!
 
 ---
 
 ## 🛠️ Tecnologias e Dependências
 
-O projeto utiliza bibliotecas consagradas para manipulação e visualização de dados:
-
 - **[Python](https://www.python.org/) 3.8+**: Linguagem base do sistema.
-- **[Django](https://www.djangoproject.com/)**: Framework web robusto responsável pelas rotas, modelos de banco de dados (SQLite) e views.
-- **[pdfplumber](https://github.com/jsvine/pdfplumber)**: Biblioteca poderosa voltada para a mineração minuciosa de textos e tabelas reais de arquivos PDF, preservando o layout.
-- **[pandas](https://pandas.pydata.org/)**: A mais popular biblioteca de manipulação de dados em Python. Utilizada aqui para reconstruir tabelas, higienizar dados e gerenciar os DataFrames antes de exportar o arquivo CSV CSV.
-- **[requests](https://pypi.org/project/requests/)**: Utilizada para comunicação com as APIs externas (Google Generative AI/Gemini REST API) através de requisições HTTP seguras.
-- **[django-bootstrap5](https://pypi.org/project/django-bootstrap5/)**: Fornece componentes e integração direta entre Django Templates e o design responsivo do Bootstrap 5.
+- **[Django](https://www.djangoproject.com/)**: Framework web robusto responsável pelas views, rotas e Modelos Dinâmicos.
+- **[pdfplumber](https://github.com/jsvine/pdfplumber)**: Biblioteca poderosa voltada para a mineração minuciosa de textos de PDFs reais.
+- **[pandas](https://pandas.pydata.org/)**: Motor oficial de manipulação e higienização das matrizes CSV exportadas.
+- **[requests](https://pypi.org/project/requests/)**: Comunicação HTTPS direta e otimizada com a Cloud do Google Generative AI REST API.
 
 ---
 
 ## 💻 Instalação Passo a Passo
 
-O sistema é universal e funciona perfeitamente em sistemas baseados em Windows, macOS e Linux. Siga as instruções abaixo para a sua máquina.
-
-### Pré-requisitos
-- Ter o **Python** instalado (versão 3.8 ou superior).
-- Acesso ao terminal / prompt de comando.
-
-### 🐧 Instalação no Linux / macOS
-
-1. **Abra o terminal e acesse a pasta do projeto:**
+1. **Ambiente Virtual e Dependências:**
    ```bash
-   cd /caminho/para/generatePdfForCsv
-   ```
-2. **Crie um Ambiente Virtual (Isolamento de dependências):**
-   ```bash
-   python3 -m venv venv
-   ```
-3. **Ative o Ambiente Virtual:**
-   ```bash
-   source venv/bin/activate
-   ```
-4. **Instale as Bibliotecas:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. **Realize as migrações do Banco de Dados:**
-   ```bash
-   python3 manage.py migrate
-   ```
-6. **Crie um Usuário Administrador (Opcional, para acessar /admin):**
-   ```bash
-   python3 manage.py createsuperuser
-   ```
-7. **Rode o Servidor:**
-   ```bash
-   python3 manage.py runserver
-   ```
-   > Acesse: `http://localhost:8000` no seu navegador.
-
----
-
-### 🪟 Instalação no Windows
-
-1. **Abra o PowerShell ou Prompt de Comando e acesse a pasta:**
-   ```cmd
-   cd \caminho\para\generatePdfForCsv
-   ```
-2. **Crie o Ambiente Virtual:**
-   ```cmd
    python -m venv venv
-   ```
-3. **Ative o Ambiente Virtual:**
-   ```cmd
-   venv\Scripts\activate
-   ```
-   *(Pode ser necessário executar `Set-ExecutionPolicy Unrestricted -Scope CurrentUser` caso o Windows bloqueie a ativação do ambiente virtual).*
-4. **Instale as dependências requisitadas:**
-   ```cmd
+   source venv/bin/activate  # (Linux/Mac)
+   venv\Scripts\activate     # (Windows)
    pip install -r requirements.txt
    ```
-5. **Aplique as Migrações da Base de Dados:**
-   ```cmd
+2. **Setup do Banco de Dados (Post-Refactor):**
+   ```bash
+   python manage.py makemigrations
    python manage.py migrate
    ```
-6. **Inicie a Aplicação:**
-   ```cmd
+3. **Rodar o Servidor:**
+   ```bash
    python manage.py runserver
    ```
-   > Acesse: `http://localhost:8000` no seu navegador.
+   Acesse: `http://localhost:8000`
 
 ---
 
-## 🚀 Como Usar o Sistema - Tutorial Completo
+## 🚀 Fluxo Principal de Utilização
 
-O fluxo de uso foi pensado para ser o mais intuitivo possível, concentrando-se em duas abordagens de conversão na tela principal.
+### Passo 1: Configurar a Estrutura (Aba Configurações)
+- Acesse a Engrenagem no canto superior direito.
+- Crie um **Novo Esquema** dando-lhe um nome customizado.
+- Faça o upload de um modelo `.csv` que conteha no cabeçalho quais colunas o sistema deverá obedecer ao cuspir o resultado.
+- Preencha as Sub-Regras (Dicionário de Transformação) apenas se necessitar padronizar nomenclaturas de forma estrita.
 
-### Método 1: Via Palavra-Chave (Extração Clássica)
-Recomendado para relatórios visualmente de "blocos" contínuos em vez de tabelas (ex: Históricos onde cada cliente ocupa 3 linhas de texto).
-1. Faça o **upload do arquivo PDF** pelo botão primário.
-2. Selecione o **Tipo de Relatório** (ex: Clientes).
-3. Na caixa **Palavra-Chave Manual**, digite o gatilho que repete antes de todo registro (Ex: `Cliente:` ou `Código:`).
-4. *(Opcional)* Se o seu PDF tiver muita poluição (ex: "Página 1", "SISTEMA XPTO"), escreva esses padrões na caixa **"Ignorar (Opcional)"** (como: `Página, ---`).
-5. Clique em **Converter PDF**. O resultado será um CSV formatado baixado automaticamente!
+### Passo 2: O Conversor (Página Inicial)
+- Escolha entre a abordagem "Palavra-Chave (Clássica)" ou ative o super-modo da IA.
+- A IA extrairá e forçará o dado a engatar nas colunas do Esquema definido no Passo 1, gerando o download na tela via Fetch.
 
-### Método 2: Extração Inteligente com a IA Gemini
-Recomendado para PDFs *"caóticos"* com quebra de palavras, múltiplas colunas na mesma linha, e informações misturadas aleatoriamente.
-1. No painel iluminado abaixo, ative o switch: **"Usar Extração Inteligente com a IA Gemini"**.
-2. **Chave de API:** Se for seu primeiro acesso, cole sua Google API Key (Pode ser adquirida de graça no [Google AI Studio](https://aistudio.google.com/)). Nas próximas vezes, ela já estará gravada, graças ao nosso salvamento de backend!
-   *(Observação: Ao ativar a IA, as opções de Palavra-Chave e Ignorar Padrões são desabilitadas, pois a inteligência não precisa de ajuda para entender qual informação importa e qual é ruído visual).*
-3. Clique em **Converter PDF**. 
-   - A interface mudará para um painel descritivo e *Real-time* guiando os estágios de raciocínio da IA (*Ex: "Lendo o PDF..." -> "Estruturando Colunas..."*).
-4. O CSV perfeitamente inteligível e higienizado sairá magicamente, baixado de forma automática via requisições AJAX!
-
----
-
-### ⚙️ Painel de Configurações (Settings)
-Acessível pelo menu lateral no topo do site (se autenticado ou na rota `/settings/`).
-Neste local, você pode predefinir **Regras de Encadeamento de Nomenclatura**.
-- **Regras de Mapeamento**: Exemplo prático: Digamos que a IA encontra e extraia a coluna `"Telefone Celular"`, mas o programa BAT onde o CSV vai ser importado aceita apenas `"CELULAR"`. Vá em Regras de Mapeamento e defina: `Source KEY: Telefone Celular`, `Target KEY: CELULAR`. Da próxima vez, a tabela será higienizada automaticamente!
-- **Schema de Relatórios**: Permite estabelecer explicitamente quais colunas "devem existir" numa conversão de Cliente, forçando dados faltantes a ficarem em branco e ordenando-os corretamente.
+### Passo 3: O Auditor (Aba Auditor IA)
+- Ferramenta de Controle de Qualidade fina.
+- Faça o *Cross-Check* subindo o PDF com o Resultado convertido para garantir que não houve uma mínima quebra de dados no transporte.
 
 ---
 
 ## 📂 Arquitetura Descomplicada (Para Desenvolvedores)
-- **`utils.py`**: Motor de extração crua e expressões regulares de formatação customizada (`Continuous Stream Block Parsing`).
-- **`ai_extraction.py`**: Pipeline integrado comunicante com o Google AI via HTTP POST. Responsável por aplicar *Prompt Engineering* nas extrações enviando o *database schema* associado e parseando o JSON devolvido.
-- **`views.py`**: O Cérebro da Web. Trata requisições assíncronas AJAX do React/Vanilla JS do frontend, valida o forms, gerencia o BD e entrega o payload em memória (XHR Blob / CSV) via Python `BytesIO` - sem gravar cópias no disco, garantindo performance total.
-- **`models.py / admin.py`**: Relacionamento das Entidades, salvamento de Chaves de API de sessões e administração do Django.
+- **`models.py / admin.py`**: Modelos Relacionais usando `ForeignKey` para isolar Regras (`MappingRule`) dentro de seus próprios Gabaritos (`ReportSchema`), eliminando o limitador de Hardcoded Enums.
+- **`utils.py / ai_extraction.py`**: Encanamento de dados em memória. A Extração recebe o ID de esquema via FK Query e molda os DataFrames limitando-se aos Arrays injetados.
+- **`views.py`**: Controladores de requisições AJAX com proteções severas aos Contextos Globais usando Fetch Headers Dinâmicos (`document.write` DOM Replacement).
