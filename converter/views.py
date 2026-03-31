@@ -121,3 +121,53 @@ class SettingsView(View):
                 schema.save()
                 
         return redirect('converter:settings')
+
+class CompareView(View):
+    template_name = 'converter/compare.html'
+
+    def get(self, request):
+        ia_obj = IA.objects.first()
+        ia_key = ia_obj.api_key if ia_obj else ''
+        return render(request, self.template_name, {'ia': ia_key})
+
+    def post(self, request):
+        pdf_file = request.FILES.get('pdf_file')
+        csv_file = request.FILES.get('csv_file')
+        use_ai = request.POST.get('use_ai')
+        gemini_api_key = request.POST.get('gemini_api_key')
+        
+        if use_ai == 'on' and gemini_api_key:
+            ia = IA.objects.filter(api_key=gemini_api_key).first()
+            if not ia:
+                IA.objects.create(api_key=gemini_api_key)
+            else:
+                ia.api_key = gemini_api_key
+                ia.save()
+            
+            try:
+                from .ai_extraction import audit_csv_with_ai
+                result = audit_csv_with_ai(pdf_file, csv_file, gemini_api_key)
+            except Exception as e:
+                return render(request, self.template_name, {'error': f'Erro na Auditoria IA: {str(e)}', 'ia': gemini_api_key})
+        elif use_ai == 'on' and not gemini_api_key:
+            return render(request, self.template_name, {'error': 'O serviço requer sua chave da API!'})
+        else:
+            try:
+                from .utils import audit_csv_classic
+                result = audit_csv_classic(pdf_file, csv_file)
+            except Exception as e:
+                return render(request, self.template_name, {'error': f'Erro na validação clássica: {str(e)}'})
+
+        if isinstance(result, dict) and result.get('status') == 'perfect':
+            return JsonResponse({"status": "perfect"})
+            
+        elif isinstance(result, pd.DataFrame):
+            buffer = BytesIO()
+            result.to_csv(buffer, index=False, sep=';', encoding='utf-8')
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='text/csv')
+            filename = "auditoria_corrigida.csv"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+            
+        return JsonResponse({"status": "error", "message": "Falha geral."})

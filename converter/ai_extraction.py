@@ -83,3 +83,89 @@ Retorne o seu JSON agora.
         
     except json.JSONDecodeError as e:
         raise Exception(f"Erro ao interpretar a resposta inteligente da IA. Formato recebido inválido: {e}\nRaw Output: {raw_json}")
+
+def audit_csv_with_ai(pdf_file, csv_file, api_key):
+    """
+    Audits an extracted CSV file against the original PDF using Gemini 2.5 Flash.
+    Returns:
+       - dict: {"status": "perfect"} if perfectly aligned.
+       - df: Dataframe with the corrected data if there are issues.
+    """
+    # 1. Obter textos
+    pdf_text = ""
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            pdf_text += (page.extract_text() or "") + "\n"
+            
+    csv_text = csv_file.read().decode('utf-8', errors='replace')
+    csv_file.seek(0)
+    pdf_file.seek(0)
+    
+    # 2. Construir Prompt de Auditoria Direcional
+    prompt = f"""Você é um Auditor Sênior de Extração de Dados e Analista de Controle de Qualidade.
+Sua função é inspecionar friamente um Arquivo CSV que foi gerado a partir de um PDF e checar a integridade absoluta.
+
+=== DADOS GERAIS DO PDF ORIGINAL ===
+{pdf_text}
+=== FIM DOS DADOS DO PDF ===
+
+=== ARQUIVO CSV A SER AUDITADO ===
+{csv_text}
+=== FIM DO ARQUIVO CSV ===
+
+Suas Diretrizes Restritas:
+1. Veja se todas as Entidades visíveis do PDF (Como clientes, códigos, produtos, informações, etc) estão presentes no CSV.
+2. Descubra se as colunas estão no lugar certo ou se esmagaram e empurraram os valores pro lado.
+3. Decisão 1: Se o CSV for **100% CORRETO, COMPLETO E ÍNTEGRO** comparado aos dados do PDF, VOCÊ DEVE RESPONDER exatamente com a palavra:
+PERFECT
+Nenhum caracter a mais. Nenhuma aspa. Nada.
+
+4. Decisão 2: Se o CSV tiver **QUALQUER FALHA MÍNIMA** (Uma coluna faltando, dados esmagados no final, registros faltando ou omitidos, ou cabeçalhos desalinhados), VOCÊ IRÁ CORRIGIR e EXTRAIR TUDO DO ZERO.
+Se for corrigir, DEVOLVA EXATAMENTE UM ARRAY JSON PURO E ESTRUTURADO com todas as linhas do documento limpas, e com chaves uniformes indicando o nome das colunas lógicas. 
+Se for extrair do zero e corrigir, não escreva markdown nem nada. APENAS BOTE O [] JSON.
+
+Tome a sua Decisão (PERFECT ou o Array JSON).
+"""
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.0}
+    }
+    
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code != 200:
+        err_msg = response.json().get('error', {}).get('message', response.text)
+        raise Exception(f"Erro na API do Gemini: {err_msg}")
+        
+    ai_response = response.json()
+    try:
+        raw_output = ai_response['candidates'][0]['content']['parts'][0]['text'].strip()
+    except (KeyError, IndexError):
+        raise Exception("Resposta inválida do Gemini durante a auditoria.")
+        
+    if raw_output.upper() == "PERFECT" or "PERFECT" in raw_output:
+        return {"status": "perfect"}
+        
+    # Se a IA retornou os dados para correção, desempacotamos
+    if raw_output.startswith('```json'):
+        raw_output = raw_output[7:]
+    elif raw_output.startswith('```'):
+        raw_output = raw_output[3:]
+    if raw_output.endswith('```'):
+        raw_output = raw_output[:-3]
+        
+    raw_output = raw_output.strip()
+    
+    try:
+        data = json.loads(raw_output)
+        if not isinstance(data, list):
+            data = [data]
+        df = pd.DataFrame(data)
+        
+        # Como o esquema no modo de auditoria nem sempre foi preenchido, apenas padronizamos chaves
+        df.columns = [c.upper().replace(' ', '_') for c in df.columns]
+        return df
+    except json.JSONDecodeError as e:
+        raise Exception(f"Erro ao parsear correção JSON da IA. O arquivo estava tão corrompido que a IA não conseguiu gerar JSON válido. Output: {raw_output}")

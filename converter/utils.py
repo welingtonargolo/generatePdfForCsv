@@ -332,3 +332,34 @@ def apply_bat_rules(df, report_type):
             df[col] = df[col].apply(format_date)
             
     return df
+
+def audit_csv_classic(pdf_file, csv_file):
+    """
+    Classic rigid auditor that just tries to extract and shape-compare the dataframes.
+    If the extracted rows don't match the CSV, it assumes error and throws the "re-extracted" pdf as fix.
+    """
+    pdf_file.seek(0)
+    df_pdf = extract_pdf_data(pdf_file, 'generic')
+    pdf_file.seek(0)
+    
+    csv_file.seek(0)
+    try:
+        # Detect delimiter simply
+        head = csv_file.read(1024).decode('utf-8', errors='ignore')
+        sep = ';' if ';' in head else ','
+        csv_file.seek(0)
+        df_csv = pd.read_csv(csv_file, sep=sep, encoding='utf-8')
+    except Exception:
+        df_csv = pd.DataFrame()
+        
+    csv_file.seek(0)
+    
+    if df_pdf.empty and df_csv.empty:
+        return {"status": "perfect"}
+        
+    if df_csv.shape == df_pdf.shape:
+        # It's identical in dimensions, we assume it's correct for classic standard.
+        return {"status": "perfect"}
+        
+    # Erro! Retorna a extração corrigida.
+    return df_pdf

@@ -124,12 +124,26 @@
     <nav class="navbar navbar-expand-lg navbar-light sticky-top">
         <div class="container">
             <a class="navbar-brand" href="{% url 'converter:home' %}">
-                <i class="bi bi-file-earmark-pdf-fill me-2"></i>Conversor PDF
+                <i class="bi bi-file-earmark-pdf-fill me-2"></i>BAT Tool
             </a>
-            <div class="ms-auto">
-                <a href="{% url 'converter:settings' %}" class="btn btn-outline-primary btn-sm rounded-pill">
-                    <i class="bi bi-gear-fill me-1"></i>Configurações
-                </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto ms-lg-4">
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold" href="{% url 'converter:home' %}"><i class="bi bi-magic me-1"></i>Conversor</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold text-success ms-lg-2" href="{% url 'converter:compare' %}"><i class="bi bi-shield-check me-1"></i>Auditor IA</a>
+                    </li>
+                </ul>
+                <div class="ms-auto mt-2 mt-lg-0">
+                    <a href="{% url 'converter:settings' %}" class="btn btn-outline-primary btn-sm rounded-pill">
+                        <i class="bi bi-gear-fill me-1"></i>Configurações
+                    </a>
+                </div>
             </div>
         </div>
     </nav>

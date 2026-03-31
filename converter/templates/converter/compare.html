@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Auditor PDF e CSV{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center fade-in">
+    <div class="col-md-10 col-lg-8">
+        <div class="text-center mb-5">
+            <h1 class="fw-bold mb-3"><i class="bi bi-shield-check text-success me-2"></i>Auditoria Inteligente</h1>
+            <p class="lead text-muted">Compare um arquivo CSV extraído com o PDF original para validar 100% da integridade.</p>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4 p-4 p-md-5 mb-4">
+            <div class="card-body">
+                {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endif %}
+
+                <form method="post" enctype="multipart/form-data" id="compareForm">
+                    {% csrf_token %}
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-danger"><i class="bi bi-file-earmark-pdf me-2"></i>Arquivo PDF (Base)</label>
+                            <input type="file" name="pdf_file" class="form-control bg-light border-0" accept=".pdf" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-success"><i class="bi bi-filetype-csv me-2"></i>Arquivo CSV (Para Validar)</label>
+                            <input type="file" name="csv_file" class="form-control bg-light border-0" accept=".csv" required>
+                        </div>
+                    </div>
+
+                    <!-- AI Switch Section -->
+                    <div class="card bg-success bg-opacity-10 border-0 rounded-4 p-3 mb-4">
+                        <div class="form-check form-switch d-flex align-items-center mb-0">
+                            <input class="form-check-input fs-4 me-3 mt-0" type="checkbox" role="switch" name="use_ai" id="useAiSwitch" checked>
+                            <label class="form-check-label fw-bold text-success" for="useAiSwitch" style="cursor: pointer;">Utilizar Auditoria Semântica (IA Gemini)</label>
+                        </div>
+                        <div class="mt-3 collapse show" id="aiKeyContainer">
+                            <label class="form-label text-success small fw-semibold mb-1">Insira sua Chave de API do Google AI Studio</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-0 text-success"><i class="bi bi-stars"></i></span>
+                                <input type="password" name="gemini_api_key" class="form-control border-0" value="{{ ia|default:'' }}" placeholder="Cole sua API Key aqui (ex: AIzaSy...)">
+                            </div>
+                            <div class="form-text text-muted mt-2 lh-sm" style="font-size: 0.8rem;">
+                                A Inteligência Artificial lerá o PDF e cruzará todos os dados com o CSV linha por linha. Se houver falhas, ela recriará e corrigirá o documento automaticamente.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Display for Success Alerts from Response -->
+                    <div id="statusAlert" class="alert alert-success d-none rounded-3 shadow-sm border-0 mb-4" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill fs-3 me-3 text-success"></i>
+                            <div>
+                                <h5 class="alert-heading fw-bold mb-1">Tudo OK!</h5>
+                                <p class="mb-0 text-muted" id="statusMessage">O arquivo CSV está 100% íntegro em relação ao PDF.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-success btn-lg rounded-pill shadow-sm fw-bold" id="submitBtn">
+                            <span id="btnText"><i class="bi bi-search me-2"></i>Iniciar Auditoria</span>
+                            <span id="btnLoading" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4 bg-light p-4 mt-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3"><i class="bi bi-info-circle-fill text-primary me-2"></i>Como Funciona?</h6>
+                <p class="text-secondary small mb-2" style="line-height:1.6;">
+                    No <strong>Modo com IA</strong> (recomendado), o sistema envia os dois arquivos à inteligência para uma inspeção profunda. Ela procura faltas de formatação, colunas esmagadas num lado só, ou registros não capturados. Se detectar erros, a própria IA reescreve o JSON correto para as colunas e forçará você a baixar o "CSV Final Corrigido".
+                </p>
+                <p class="text-secondary small mb-0" style="line-height:1.6;">
+                    No <strong>Modo Clássico</strong>, o script compara a matriz extraída do PDF pelo algoritmo-padrão. Se não for igual ao CSV, o PDF será re-extraído e baixado novamente.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const aiSwitch = document.getElementById('useAiSwitch');
+    const aiContainer = document.getElementById('aiKeyContainer');
+    const form = document.getElementById('compareForm');
+    const statusAlert = document.getElementById('statusAlert');
+
+    aiSwitch.addEventListener('change', function() {
+        if(this.checked) {
+            aiContainer.classList.add('show');
+        } else {
+            aiContainer.classList.remove('show');
+        }
+    });
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById('submitBtn');
+        const text = document.getElementById('btnText');
+        const loading = document.getElementById('btnLoading');
+        
+        btn.disabled = true;
+        loading.classList.remove('d-none');
+        statusAlert.classList.add('d-none');
+        
+        if (aiSwitch.checked) {
+            text.innerHTML = '<i class="bi bi-shield-check me-2"></i>Auditor IA Analisando tabelas...';
+        } else {
+            text.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Validando Matriz...';
+        }
+        
+        let step = 0;
+        let aiInterval;
+        if (aiSwitch.checked) {
+            const messages = [
+                "Cruzando dados do PDF e CSV...",
+                "Procurando por registros ausentes...",
+                "Validando colunas da planilha...",
+                "Apurando integridade..."
+            ];
+            aiInterval = setInterval(() => {
+                text.innerHTML = `<i class="bi bi-shield-check me-2"></i>${messages[step % messages.length]}`;
+                step++;
+            }, 4500);
+        }
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const contentType = response.headers.get("content-type");
+            
+            // Render HTML Errors
+            if (contentType && contentType.includes("text/html")) {
+                const htmlText = await response.text();
+                document.open();
+                document.write(htmlText);
+                document.close();
+                return;
+            }
+
+            if (response.ok) {
+                // Se a resposta for um JSON puro, significa Status OK (sem erros encontrados)
+                if (contentType && contentType.includes("application/json")) {
+                    const result = await response.json();
+                    if (result.status === "perfect") {
+                        statusAlert.classList.remove('d-none');
+                        text.innerHTML = '<i class="bi bi-check-circle me-2"></i>Validação 100%';
+                    } else if (result.status === "error") {
+                        alert(result.message);
+                    }
+                } else if (contentType && contentType.includes("text/csv")) {
+                    // A IA (ou clássico) encontrou erro e cuspiu o CSV novo!
+                    const blob = await response.blob();
+                    let filename = 'relatorio_corrigido.csv';
+                    const disposition = response.headers.get('content-disposition');
+                    if (disposition && disposition.includes('filename="')) {
+                        filename = disposition.split('filename="')[1].split('"')[0];
+                    }
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    
+                    text.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Baixou Correção!';
+                }
+                
+                // Cleanup
+                const key = form.elements['gemini_api_key'].value;
+                form.reset();
+                form.elements['gemini_api_key'].value = key;
+                
+                setTimeout(() => {
+                    text.innerHTML = '<i class="bi bi-search me-2"></i>Iniciar Auditoria';
+                    btn.disabled = false;
+                    loading.classList.add('d-none');
+                }, 4000);
+                
+            } else {
+                throw new Error('Falha na resposta do servidor.');
+            }
+        } catch (error) {
+            console.error(error);
+            text.innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Erro ao processar';
+            btn.disabled = false;
+            loading.classList.add('d-none');
+            setTimeout(() => {
+                text.innerHTML = '<i class="bi bi-search me-2"></i>Tentar Novamente';
+            }, 3000);
+        } finally {
+            if (aiInterval) clearInterval(aiInterval);
+        }
+    });
+</script>
+{% endblock %}
